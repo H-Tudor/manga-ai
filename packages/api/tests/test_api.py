@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from api.auth import UserInfo, require_auth
+from api.auth import UserInfo, require_auth, _auth_disabled
 from api.main import app, get_client
 
 
@@ -35,6 +35,16 @@ def client():
     app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def client_no_auth(monkeypatch):
+    """Test client with AUTH_DISABLED=true – no dependency override needed."""
+    monkeypatch.setenv("AUTH_DISABLED", "true")
+    app.dependency_overrides[get_client] = lambda: DummyClient()
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
 def test_search_endpoint(client):
     response = client.get("/manga/search", params={"query": "Naruto"})
     assert response.status_code == 200
@@ -45,4 +55,29 @@ def test_health_no_auth(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_protected_endpoint_requires_auth():
+    """Without AUTH_DISABLED and without a token the endpoint must return 401."""
+    app.dependency_overrides[get_client] = lambda: DummyClient()
+    with TestClient(app) as test_client:
+        response = test_client.get("/manga/search", params={"query": "Naruto"})
+    app.dependency_overrides.clear()
+    assert response.status_code == 401
+
+
+def test_auth_disabled_flag(monkeypatch):
+    monkeypatch.setenv("AUTH_DISABLED", "true")
+    assert _auth_disabled() is True
+    monkeypatch.setenv("AUTH_DISABLED", "false")
+    assert _auth_disabled() is False
+    monkeypatch.delenv("AUTH_DISABLED", raising=False)
+    assert _auth_disabled() is False
+
+
+def test_search_endpoint_auth_disabled(client_no_auth):
+    """When AUTH_DISABLED=true, requests without a token must succeed."""
+    response = client_no_auth.get("/manga/search", params={"query": "Bleach"})
+    assert response.status_code == 200
+    assert response.json()["results"][0]["title"] == "Bleach"
 

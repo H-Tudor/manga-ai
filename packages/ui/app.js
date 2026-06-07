@@ -1,4 +1,5 @@
 const API_BASE = window.API_BASE || "http://localhost:8000";
+const NO_AUTH = window.NO_AUTH === true || window.NO_AUTH === "true";
 
 // ── Auth state ───────────────────────────────────────────────────────────────
 let authToken = sessionStorage.getItem("manga_ai_token") || "";
@@ -37,10 +38,11 @@ function showAuthError(msg) {
   document.getElementById("auth-error").textContent = msg;
 }
 
-// Show main section if token already present
-if (authToken) {
+// Show main section if auth is disabled or a token is already present
+if (NO_AUTH || authToken) {
   document.getElementById("auth-section").style.display = "none";
   document.getElementById("main-section").style.display = "block";
+  if (NO_AUTH) refreshJobs();
 }
 
 // ── Search ───────────────────────────────────────────────────────────────────

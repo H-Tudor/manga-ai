@@ -9,3 +9,4 @@ src/manga_ai_api.egg-info/dependency_links.txt
 src/manga_ai_api.egg-info/requires.txt
 src/manga_ai_api.egg-info/top_level.txt
 tests/test_api.py
+tests/test_priority_scheduler.py

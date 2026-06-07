@@ -13,6 +13,10 @@ Configuration (via environment variables):
         Realm name.  Defaults to ``manga-ai``.
     ``KEYCLOAK_AUDIENCE``
         Expected ``aud`` claim in the token.  Defaults to ``manga-ai-api``.
+    ``AUTH_DISABLED``
+        Set to ``true`` or ``1`` to disable authentication entirely.  Every
+        request is then treated as an anonymous user without validating any
+        token.  **Do not enable in production.**  Defaults to ``false``.
 
 Usage::
 
@@ -35,7 +39,7 @@ from jose import JWTError, jwk, jwt
 from jose.utils import base64url_decode
 from pydantic import BaseModel
 
-_bearer = HTTPBearer(auto_error=True)
+_bearer = HTTPBearer(auto_error=False)
 
 # ---------------------------------------------------------------------------
 # Simple in-process JWKS cache (key_id → public key)
@@ -53,6 +57,11 @@ def _realm() -> str:
 
 def _audience() -> str:
     return os.getenv("KEYCLOAK_AUDIENCE", "manga-ai-api")
+
+
+def _auth_disabled() -> bool:
+    """Return ``True`` when the ``AUTH_DISABLED`` env var is set to a truthy value."""
+    return os.getenv("AUTH_DISABLED", "false").strip().lower() in {"1", "true", "yes"}
 
 
 def _jwks_uri() -> str:
@@ -95,20 +104,29 @@ class UserInfo(BaseModel):
 
 
 async def require_auth(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> UserInfo:
     """Verify the ****** and return the decoded :class:`UserInfo`.
+
+    When ``AUTH_DISABLED=true`` the dependency skips all token validation and
+    returns an anonymous :class:`UserInfo` so that every request is allowed.
 
     Raises :class:`fastapi.HTTPException` with status 401 on any validation
     failure (missing token, bad signature, expired, wrong audience, etc.).
     """
-    token = credentials.credentials
+    if _auth_disabled():
+        return UserInfo(sub="anonymous", email="", preferred_username="anonymous")
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if credentials is None:
+        raise credentials_exception
+
+    token = credentials.credentials
 
     try:
         # Decode header to get key ID without verifying the signature yet
@@ -144,7 +162,13 @@ async def require_auth(
 async def require_admin(
     user: Annotated[UserInfo, Depends(require_auth)],
 ) -> UserInfo:
-    """Extend :func:`require_auth` to also require the ``admin`` realm role."""
+    """Extend :func:`require_auth` to also require the ``admin`` realm role.
+
+    When ``AUTH_DISABLED=true`` the role check is skipped and the anonymous
+    user is returned directly.
+    """
+    if _auth_disabled():
+        return user
     if "admin" not in user.realm_roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return user

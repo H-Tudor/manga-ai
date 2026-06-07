@@ -29,6 +29,8 @@ services:
       KEYCLOAK_URL: "http://keycloak:8080"
       KEYCLOAK_REALM: "manga-ai"
       KEYCLOAK_AUDIENCE: "manga-ai-api"
+      # Set to "true" to disable token validation (development only — never use in production)
+      # AUTH_DISABLED: "false"
       # For Ollama integration swap AI_BACKEND to "ollama" and
       # set OLLAMA_BASE_URL to http://ollama:11434
     volumes:
@@ -44,6 +46,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "80:80"
+    environment:
+      # Set to "true" to skip the sign-in form (development only — never use in production)
+      NO_AUTH: "false"
     depends_on:
       - api
     restart: unless-stopped
