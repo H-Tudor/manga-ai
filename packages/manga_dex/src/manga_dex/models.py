@@ -31,7 +31,8 @@ class ChapterListCache(SQLModel, table=True):
 class ChapterContentCache(SQLModel, table=True):
     chapter_id: str = Field(primary_key=True)
     source_language: str
-    page_urls_json: str
+    chapter_hash: str
+    page_filenames_json: str
     updated_at: datetime = Field(default_factory=now_utc)
 
 
