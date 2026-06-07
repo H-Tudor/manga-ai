@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.requests import Request
+from fastapi.responses import JSONResponse, Response
 from manga_dex import MangaDexClient
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -50,6 +52,39 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
 
 
 app = FastAPI(title="Manga AI API", lifespan=lifespan)
+
+
+# ---------------------------------------------------------------------------
+# Dependency / upstream error handlers
+# ---------------------------------------------------------------------------
+
+
+@app.exception_handler(httpx.HTTPStatusError)
+async def mangadex_http_error_handler(request: Request, exc: httpx.HTTPStatusError) -> JSONResponse:
+    """Translate a MangaDex HTTP error into a 502 response with a clear message."""
+    status_code = exc.response.status_code
+    return JSONResponse(
+        status_code=502,
+        content={"detail": f"MangaDex API returned an error (HTTP {status_code})"},
+    )
+
+
+@app.exception_handler(httpx.TimeoutException)
+async def mangadex_timeout_handler(request: Request, exc: httpx.TimeoutException) -> JSONResponse:
+    """Translate a MangaDex request timeout into a 504 response."""
+    return JSONResponse(
+        status_code=504,
+        content={"detail": "MangaDex API request timed out"},
+    )
+
+
+@app.exception_handler(httpx.RequestError)
+async def mangadex_request_error_handler(request: Request, exc: httpx.RequestError) -> JSONResponse:
+    """Translate any other network/connection error into a 503 response."""
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "MangaDex API is unreachable"},
+    )
 
 
 # ---------------------------------------------------------------------------

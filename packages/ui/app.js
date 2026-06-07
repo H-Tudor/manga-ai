@@ -9,15 +9,49 @@ function authHeaders() {
 }
 
 async function apiFetch(path, options = {}) {
-  const resp = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-  });
+  let resp;
+  try {
+    resp = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+    });
+  } catch (networkErr) {
+    throw new ApiError("Cannot reach the API server. Is it running?", 0);
+  }
   if (resp.status === 401) {
     showAuthError("Token rejected (401). Please provide a valid token.");
-    throw new Error("Unauthorized");
+    throw new ApiError("Unauthorized", 401);
+  }
+  if (!resp.ok) {
+    let detail = `Request failed (HTTP ${resp.status})`;
+    try {
+      const body = await resp.clone().json();
+      if (body.detail) detail = body.detail;
+    } catch { /* ignore parse errors */ }
+    throw new ApiError(detail, resp.status);
   }
   return resp;
+}
+
+class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function showApiError(msg) {
+  const el = document.getElementById("api-error");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function clearApiError() {
+  const el = document.getElementById("api-error");
+  if (!el) return;
+  el.textContent = "";
+  el.style.display = "none";
 }
 
 function applyToken() {
@@ -57,7 +91,14 @@ searchForm.addEventListener("submit", async (event) => {
   const query = searchInput.value.trim();
   if (!query) return;
 
-  const response = await apiFetch(`/manga/search?query=${encodeURIComponent(query)}`);
+  clearApiError();
+  let response;
+  try {
+    response = await apiFetch(`/manga/search?query=${encodeURIComponent(query)}`);
+  } catch (err) {
+    showApiError(`Search failed: ${err.message}`);
+    return;
+  }
   const data = await response.json();
   mangaResults.innerHTML = "";
   chapterResults.innerHTML = "";
@@ -85,7 +126,14 @@ searchForm.addEventListener("submit", async (event) => {
 
 // ── Chapters ─────────────────────────────────────────────────────────────────
 async function loadChapters(mangaId) {
-  const response = await apiFetch(`/manga/${mangaId}/chapters`);
+  clearApiError();
+  let response;
+  try {
+    response = await apiFetch(`/manga/${mangaId}/chapters`);
+  } catch (err) {
+    showApiError(`Failed to load chapters: ${err.message}`);
+    return;
+  }
   const data = await response.json();
   chapterResults.innerHTML = "";
   chapterImages.innerHTML = "";
@@ -101,7 +149,14 @@ async function loadChapters(mangaId) {
 }
 
 async function loadChapterImages(chapterId) {
-  const response = await apiFetch(`/chapters/${chapterId}`);
+  clearApiError();
+  let response;
+  try {
+    response = await apiFetch(`/chapters/${chapterId}`);
+  } catch (err) {
+    showApiError(`Failed to load images: ${err.message}`);
+    return;
+  }
   const data = await response.json();
   chapterImages.innerHTML = "";
 
@@ -109,9 +164,10 @@ async function loadChapterImages(chapterId) {
     const image = document.createElement("img");
     image.className = "page-img";
     // Include auth token as query param is not ideal; use in-browser fetch + blob URL instead
-    apiFetch(img.endpoint).then((r) => r.blob()).then((blob) => {
-      image.src = URL.createObjectURL(blob);
-    });
+    apiFetch(img.endpoint)
+      .then((r) => r.blob())
+      .then((blob) => { image.src = URL.createObjectURL(blob); })
+      .catch((err) => { image.alt = `Page failed to load: ${err.message}`; });
     chapterImages.appendChild(image);
   });
 }
