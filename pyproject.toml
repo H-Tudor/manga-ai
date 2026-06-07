@@ -3,7 +3,7 @@ name = "manga-ai"
 version = "0.1.0"
 description = "Manga AI monorepo"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = []
 
 [tool.uv.workspace]
@@ -20,6 +20,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 pythonpath = [
   "packages/ai_translate/src",
   "packages/manga_dex/src",

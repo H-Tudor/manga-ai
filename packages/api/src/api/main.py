@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -11,7 +12,10 @@ app = FastAPI(title="Manga AI API")
 
 @lru_cache(maxsize=1)
 def get_client() -> MangaDexClient:
-    return MangaDexClient()
+    return MangaDexClient(
+        db_url=os.getenv("MANGA_DB_URL", "sqlite:///./manga_cache.db"),
+        storage_dir=os.getenv("MANGA_STORAGE_DIR", "./cache/translated"),
+    )
 
 
 @app.get("/health")
