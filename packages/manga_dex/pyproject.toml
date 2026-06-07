@@ -1,0 +1,15 @@
+[project]
+name = "manga-dex"
+version = "0.1.0"
+description = "MangaDex API client with caching"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27.0",
+  "sqlmodel>=0.0.22",
+  "python-dotenv>=1.0.1",
+  "ai-translate",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
