@@ -1,0 +1,9 @@
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+langchain-anthropic>=0.2.0
+langchain-ollama>=0.2.0
+Pillow>=10.4.0
+python-dotenv>=1.0.1
+
+[manga-ocr]
+manga-ocr>=0.1.10

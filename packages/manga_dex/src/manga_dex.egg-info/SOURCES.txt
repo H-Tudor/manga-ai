@@ -1,0 +1,10 @@
+pyproject.toml
+src/manga_dex/__init__.py
+src/manga_dex/client.py
+src/manga_dex/models.py
+src/manga_dex.egg-info/PKG-INFO
+src/manga_dex.egg-info/SOURCES.txt
+src/manga_dex.egg-info/dependency_links.txt
+src/manga_dex.egg-info/requires.txt
+src/manga_dex.egg-info/top_level.txt
+tests/test_client.py
