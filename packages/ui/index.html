@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manga AI</title>
+    <style>
+      body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+      #auth-section { background: #f0f4ff; border: 1px solid #bcd; border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem; }
+      #auth-section input { width: 100%; box-sizing: border-box; margin-top: 0.3rem; padding: 0.4rem; }
+      #auth-error { color: red; margin-top: 0.4rem; }
+      #main-section { display: none; }
+      .manga-item { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
+      .manga-item button { flex-shrink: 0; }
+      .enqueue-btn { background: #3a7bd5; color: white; border: none; border-radius: 4px; padding: 0.3rem 0.7rem; cursor: pointer; }
+      .enqueue-btn:hover { background: #2c63b8; }
+      #queue-panel { background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; }
+      #queue-panel h3 { margin-top: 0; }
+      .job-row { display: flex; gap: 1rem; font-size: 0.9em; padding: 0.3rem 0; border-bottom: 1px solid #eee; }
+      .status-pending { color: gray; }
+      .status-running { color: #d47d00; }
+      .status-completed { color: green; }
+      .status-failed { color: red; }
+      img.page-img { max-width: 800px; display: block; margin-bottom: 1rem; }
+    </style>
+  </head>
+  <body>
+    <!-- Auth section -->
+    <div id="auth-section">
+      <strong>Sign in</strong>
+      <div>
+        <label>Access Token (Bearer)
+          <input id="token-input" type="password" placeholder="Paste your Keycloak access token" />
+        </label>
+      </div>
+      <button onclick="applyToken()" style="margin-top:0.5rem">Apply token</button>
+      <div id="auth-error"></div>
+      <small>
+        Obtain a token from Keycloak:
+        <code>POST http://localhost:8080/realms/manga-ai/protocol/openid-connect/token</code>
+      </small>
+    </div>
+
+    <!-- Main app section (shown after auth) -->
+    <div id="main-section">
+      <h1>Manga AI</h1>
+      <div id="api-error" style="display:none;background:#fff0f0;border:1px solid #f99;border-radius:4px;padding:0.6rem 0.8rem;margin-bottom:1rem;color:#c00"></div>
+      <form id="search-form">
+        <input id="search-input" placeholder="Search manga title" required style="width:70%;padding:0.4rem" />
+        <button type="submit">Search</button>
+      </form>
+      <ul id="manga-results"></ul>
+      <ul id="chapter-results"></ul>
+      <div id="chapter-images"></div>
+
+      <!-- Translation queue panel -->
+      <div id="queue-panel">
+        <h3>Translation Queue</h3>
+        <button onclick="refreshJobs()" style="margin-bottom:0.5rem">Refresh</button>
+        <div id="job-list"><em>No jobs yet.</em></div>
+      </div>
+    </div>
+
+    <script>window.NO_AUTH = ${NO_AUTH};</script>
+    <script src="./app.js"></script>
+  </body>
+</html>

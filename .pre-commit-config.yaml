@@ -1,0 +1,19 @@
+repos:
+  # Ruff: fast Python linter and formatter (replaces flake8, isort, pyupgrade, etc.)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff          # linting
+        args: [--fix]
+      - id: ruff-format   # formatting (replaces black)
+
+  # Basic file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: debug-statements

@@ -1,0 +1,12 @@
+pyproject.toml
+src/ai_translate/__init__.py
+src/ai_translate/backends.py
+src/ai_translate/image_utils.py
+src/ai_translate/ocr.py
+src/ai_translate/schema.py
+src/ai_translate/translator.py
+src/ai_translate.egg-info/PKG-INFO
+src/ai_translate.egg-info/SOURCES.txt
+src/ai_translate.egg-info/dependency_links.txt
+src/ai_translate.egg-info/requires.txt
+src/ai_translate.egg-info/top_level.txt

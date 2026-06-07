@@ -1,0 +1,43 @@
+[project]
+name = "manga-ai"
+version = "0.1.0"
+description = "Manga AI monorepo"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+  "packages/ai_translate",
+  "packages/manga_dex",
+  "packages/api",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.2.0",
+  "pytest-asyncio>=0.23.0",
+  "sphinx>=7.0",
+  "sphinx-autobuild>=2024.0.0",
+  "ruff>=0.8.0",
+  "pre-commit>=4.0.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = [
+  "packages/ai_translate/src",
+  "packages/manga_dex/src",
+  "packages/api/src",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.format]
+quote-style = "double"

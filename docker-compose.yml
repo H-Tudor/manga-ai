@@ -1,0 +1,80 @@
+services:
+  # ─── Keycloak (identity provider) ─────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infra/keycloak-realm.json:/opt/keycloak/data/import/realm.json:ro
+    restart: unless-stopped
+
+  # ─── FastAPI back-end ──────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # SQLite and translated-image cache live inside this named volume.
+      MANGA_DB_URL: "sqlite:////data/manga_cache.db"
+      MANGA_STORAGE_DIR: "/data/translated"
+      # Keycloak OIDC settings
+      KEYCLOAK_URL: "http://keycloak:8080"
+      KEYCLOAK_REALM: "manga-ai"
+      KEYCLOAK_AUDIENCE: "manga-ai-api"
+      # Set to "true" to disable token validation (development only — never use in production)
+      # AUTH_DISABLED: "false"
+      # For Ollama integration swap AI_BACKEND to "ollama" and
+      # set OLLAMA_BASE_URL to http://ollama:11434
+    volumes:
+      - manga_data:/data
+    depends_on:
+      - keycloak
+    restart: unless-stopped
+
+  # ─── Static UI via nginx ───────────────────────────────────────────────────
+  ui:
+    build:
+      context: packages/ui
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    environment:
+      # Set to "true" to skip the sign-in form (development only — never use in production)
+      NO_AUTH: "false"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ─── Ollama (local LLM inference) ─────────────────────────────────────────
+  # Uncomment the block below to enable Ollama-hosted models.
+  # After starting, pull a vision model:  docker compose exec ollama ollama pull minicpm-v
+  # Then set in .env:  AI_BACKEND=ollama  OLLAMA_BASE_URL=http://ollama:11434
+  #
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_models:/root/.ollama
+  #   restart: unless-stopped
+  #   # GPU support (NVIDIA) — remove if not available:
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+
+volumes:
+  manga_data:
+  # ollama_models:   # uncomment when the ollama service is enabled
+
