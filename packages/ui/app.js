@@ -4,7 +4,7 @@ const API_BASE = window.API_BASE || "http://localhost:8000";
 let authToken = sessionStorage.getItem("manga_ai_token") || "";
 
 function authHeaders() {
-  return authToken ? { Authorization: `****** } : {};
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
 }
 
 async function apiFetch(path, options = {}) {
