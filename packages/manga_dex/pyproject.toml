@@ -10,6 +10,9 @@ dependencies = [
   "ai-translate",
 ]
 
+[tool.uv.sources]
+ai-translate = { workspace = true }
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
