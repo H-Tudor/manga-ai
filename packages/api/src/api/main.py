@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
-from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
@@ -11,8 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from .auth import UserInfo, require_auth
-from .worker import enqueue, start_worker, stop_worker
-
+from .worker import enqueue, on_demand_request, start_worker, stop_worker
 
 # ---------------------------------------------------------------------------
 # Shared client / engine helpers
@@ -96,7 +94,8 @@ async def chapter_images(
     client: MangaDexClient = Depends(get_client),
     _user: UserInfo = Depends(require_auth),
 ) -> dict[str, object]:
-    images = await client.get_chapter_images(chapter_id, target_language)
+    async with on_demand_request():
+        images = await client.get_chapter_images(chapter_id, target_language)
     for page in images:
         page["endpoint"] = f"/chapters/{chapter_id}/images/{page['page_index']}?target_language={target_language}"
     return {"chapter_id": chapter_id, "images": images}
@@ -111,7 +110,8 @@ async def chapter_image(
     _user: UserInfo = Depends(require_auth),
 ) -> Response:
     try:
-        content = await client.get_page_bytes(chapter_id, page_index, target_language=target_language)
+        async with on_demand_request():
+            content = await client.get_page_bytes(chapter_id, page_index, target_language=target_language)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return Response(content=content, media_type="image/jpeg")
