@@ -1,6 +1,8 @@
 pyproject.toml
 src/api/__init__.py
+src/api/auth.py
 src/api/main.py
+src/api/worker.py
 src/manga_ai_api.egg-info/PKG-INFO
 src/manga_ai_api.egg-info/SOURCES.txt
 src/manga_ai_api.egg-info/dependency_links.txt

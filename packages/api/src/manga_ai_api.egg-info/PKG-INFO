@@ -6,3 +6,5 @@ Requires-Python: >=3.14
 Requires-Dist: fastapi>=0.115.0
 Requires-Dist: uvicorn>=0.30.0
 Requires-Dist: manga-dex
+Requires-Dist: python-jose[cryptography]>=3.3.0
+Requires-Dist: httpx>=0.27.0

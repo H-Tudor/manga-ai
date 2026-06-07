@@ -10,7 +10,7 @@ from ai_translate import ImageTranslator
 from dotenv import load_dotenv
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from .models import ChapterContentCache, MangaSearchCache, TranslatedPageCache
+from .models import ChapterContentCache, ChapterListCache, MangaSearchCache, TranslatedPageCache
 
 
 class MangaDexClient:
@@ -81,24 +81,61 @@ class MangaDexClient:
         return parsed
 
     async def get_chapters(self, manga_id: str, limit: int = 100) -> list[dict[str, Any]]:
-        response = await self.client.get(
-            "/chapter",
-            params={"manga": manga_id, "limit": limit, "order[chapter]": "asc"},
-            headers=self._auth_headers(),
-        )
-        response.raise_for_status()
-        data = response.json().get("data", [])
+        """Return the chapter list for *manga_id*.
 
-        chapters = [
-            {
-                "id": chapter.get("id"),
-                "title": chapter.get("attributes", {}).get("title"),
-                "chapter": chapter.get("attributes", {}).get("chapter"),
-                "language": chapter.get("attributes", {}).get("translatedLanguage", "unknown"),
-            }
-            for chapter in data
-        ]
-        return sorted(chapters, key=lambda c: (self._language_rank(c["language"]), c.get("chapter") or ""))
+        Strategy: **live-first with DB fallback**.
+
+        1. Attempt a live call to the MangaDex API.
+        2. On success, persist the result to :class:`ChapterListCache` and
+           return it (always fresh).
+        3. On any network or HTTP error, fall back to the last cached result
+           if one exists; otherwise re-raise the original exception.
+        """
+        exc_to_raise: Exception | None = None
+        try:
+            response = await self.client.get(
+                "/chapter",
+                params={"manga": manga_id, "limit": limit, "order[chapter]": "asc"},
+                headers=self._auth_headers(),
+            )
+            response.raise_for_status()
+            data = response.json().get("data", [])
+
+            chapters = [
+                {
+                    "id": chapter.get("id"),
+                    "title": chapter.get("attributes", {}).get("title"),
+                    "chapter": chapter.get("attributes", {}).get("chapter"),
+                    "language": chapter.get("attributes", {}).get("translatedLanguage", "unknown"),
+                }
+                for chapter in data
+            ]
+            sorted_chapters = sorted(
+                chapters,
+                key=lambda c: (self._language_rank(c["language"]), c.get("chapter") or ""),
+            )
+
+            with Session(self.engine) as session:
+                session.merge(
+                    ChapterListCache(
+                        manga_id=manga_id,
+                        payload_json=json.dumps(sorted_chapters),
+                    )
+                )
+                session.commit()
+
+            return sorted_chapters
+
+        except Exception as exc:  # noqa: BLE001
+            exc_to_raise = exc
+
+        # Fall back to cached data
+        with Session(self.engine) as session:
+            cached = session.get(ChapterListCache, manga_id)
+            if cached:
+                return json.loads(cached.payload_json)
+
+        raise exc_to_raise
 
     async def _get_cached_chapter_content(self, chapter_id: str) -> tuple[str, list[str]] | None:
         with Session(self.engine) as session:

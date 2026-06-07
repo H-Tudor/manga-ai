@@ -35,6 +35,46 @@ async def test_get_chapters_prioritizes_english_and_latin(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_get_chapters_falls_back_to_db_on_api_failure(tmp_path: Path):
+    """get_chapters should return cached data when the live API is unavailable."""
+    calls = {"n": 0}
+
+    async def working_app(scope, receive, send):
+        body = {
+            "data": [
+                {"id": "c1", "attributes": {"chapter": "1", "translatedLanguage": "en"}},
+            ]
+        }
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": str(body).replace("'", '"').encode()})
+
+    async def broken_app(scope, receive, send):
+        calls["n"] += 1
+        await send({"type": "http.response.start", "status": 503, "headers": []})
+        await send({"type": "http.response.body", "body": b"{}"})
+
+    db_url = f"sqlite:///{tmp_path}/cache.db"
+    storage = tmp_path / "translated"
+
+    # First call: live API works – populates cache
+    transport = ASGITransport(app=working_app)
+    async with AsyncClient(transport=transport, base_url="https://api.mangadex.org") as http_client:
+        client = MangaDexClient(db_url=db_url, storage_dir=storage, http_client=http_client)
+        chapters_live = await client.get_chapters("manga-x")
+
+    assert chapters_live[0]["id"] == "c1"
+
+    # Second call: API is broken – should fall back to DB
+    transport2 = ASGITransport(app=broken_app)
+    async with AsyncClient(transport=transport2, base_url="https://api.mangadex.org") as http_client2:
+        client2 = MangaDexClient(db_url=db_url, storage_dir=storage, http_client=http_client2)
+        chapters_cached = await client2.get_chapters("manga-x")
+
+    assert chapters_cached[0]["id"] == "c1"
+    assert calls["n"] == 1  # broken app was called exactly once
+
+
+@pytest.mark.asyncio
 async def test_translated_images_are_cached(tmp_path: Path):
     calls = {"image": 0}
 

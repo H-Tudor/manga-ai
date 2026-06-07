@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Minimal default permissions for all jobs
+permissions:
+  contents: read
+
+jobs:
+  # ── Stage 1: formatting & linting ──────────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+
+  # ── Stage 2: unit tests (runs only when lint passes) ───────────────────────
+  test:
+    name: Unit Tests
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --ignore-requires-python \
+            -e packages/ai_translate \
+            -e packages/manga_dex \
+            -e packages/api
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run tests
+        run: python -m pytest -q

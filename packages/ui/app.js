@@ -1,5 +1,49 @@
 const API_BASE = window.API_BASE || "http://localhost:8000";
 
+// ── Auth state ───────────────────────────────────────────────────────────────
+let authToken = sessionStorage.getItem("manga_ai_token") || "";
+
+function authHeaders() {
+  return authToken ? { Authorization: `****** } : {};
+}
+
+async function apiFetch(path, options = {}) {
+  const resp = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { ...authHeaders(), ...(options.headers || {}) },
+  });
+  if (resp.status === 401) {
+    showAuthError("Token rejected (401). Please provide a valid token.");
+    throw new Error("Unauthorized");
+  }
+  return resp;
+}
+
+function applyToken() {
+  const input = document.getElementById("token-input");
+  authToken = input.value.trim();
+  if (!authToken) {
+    showAuthError("Please paste a token.");
+    return;
+  }
+  sessionStorage.setItem("manga_ai_token", authToken);
+  document.getElementById("auth-error").textContent = "";
+  document.getElementById("auth-section").style.display = "none";
+  document.getElementById("main-section").style.display = "block";
+  refreshJobs();
+}
+
+function showAuthError(msg) {
+  document.getElementById("auth-error").textContent = msg;
+}
+
+// Show main section if token already present
+if (authToken) {
+  document.getElementById("auth-section").style.display = "none";
+  document.getElementById("main-section").style.display = "block";
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
 const searchForm = document.getElementById("search-form");
 const searchInput = document.getElementById("search-input");
 const mangaResults = document.getElementById("manga-results");
@@ -11,7 +55,7 @@ searchForm.addEventListener("submit", async (event) => {
   const query = searchInput.value.trim();
   if (!query) return;
 
-  const response = await fetch(`${API_BASE}/manga/search?query=${encodeURIComponent(query)}`);
+  const response = await apiFetch(`/manga/search?query=${encodeURIComponent(query)}`);
   const data = await response.json();
   mangaResults.innerHTML = "";
   chapterResults.innerHTML = "";
@@ -19,16 +63,27 @@ searchForm.addEventListener("submit", async (event) => {
 
   data.results.forEach((manga) => {
     const li = document.createElement("li");
-    const button = document.createElement("button");
-    button.textContent = `${manga.title} (${manga.id})`;
-    button.onclick = () => loadChapters(manga.id);
-    li.appendChild(button);
+    li.className = "manga-item";
+
+    const btn = document.createElement("button");
+    btn.textContent = `${manga.title} (${manga.id})`;
+    btn.onclick = () => loadChapters(manga.id);
+
+    const enqueueBtn = document.createElement("button");
+    enqueueBtn.textContent = "⏳ Enqueue";
+    enqueueBtn.className = "enqueue-btn";
+    enqueueBtn.title = "Enqueue all chapters for background translation";
+    enqueueBtn.onclick = () => enqueueManga(manga.id, manga.title, enqueueBtn);
+
+    li.appendChild(btn);
+    li.appendChild(enqueueBtn);
     mangaResults.appendChild(li);
   });
 });
 
+// ── Chapters ─────────────────────────────────────────────────────────────────
 async function loadChapters(mangaId) {
-  const response = await fetch(`${API_BASE}/manga/${mangaId}/chapters`);
+  const response = await apiFetch(`/manga/${mangaId}/chapters`);
   const data = await response.json();
   chapterResults.innerHTML = "";
   chapterImages.innerHTML = "";
@@ -44,16 +99,80 @@ async function loadChapters(mangaId) {
 }
 
 async function loadChapterImages(chapterId) {
-  const response = await fetch(`${API_BASE}/chapters/${chapterId}`);
+  const response = await apiFetch(`/chapters/${chapterId}`);
   const data = await response.json();
   chapterImages.innerHTML = "";
 
   data.images.forEach((img) => {
     const image = document.createElement("img");
-    image.src = `${API_BASE}${img.endpoint}`;
-    image.style.maxWidth = "800px";
-    image.style.display = "block";
-    image.style.marginBottom = "1rem";
+    image.className = "page-img";
+    // Include auth token as query param is not ideal; use in-browser fetch + blob URL instead
+    apiFetch(img.endpoint).then((r) => r.blob()).then((blob) => {
+      image.src = URL.createObjectURL(blob);
+    });
     chapterImages.appendChild(image);
   });
 }
+
+// ── Translation queue ─────────────────────────────────────────────────────────
+async function enqueueManga(mangaId, mangaTitle, btn) {
+  btn.disabled = true;
+  btn.textContent = "Queuing…";
+  try {
+    const resp = await apiFetch(`/manga/${mangaId}/enqueue`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ manga_title: mangaTitle, target_language: "en" }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      btn.textContent = `✅ Job #${data.job_id}`;
+      refreshJobs();
+    } else {
+      btn.textContent = "⚠️ Error";
+      btn.disabled = false;
+    }
+  } catch {
+    btn.textContent = "⚠️ Error";
+    btn.disabled = false;
+  }
+}
+
+async function refreshJobs() {
+  const jobList = document.getElementById("job-list");
+  try {
+    const resp = await apiFetch("/jobs");
+    const data = await resp.json();
+    if (!data.jobs || data.jobs.length === 0) {
+      jobList.innerHTML = "<em>No jobs yet.</em>";
+      return;
+    }
+    jobList.innerHTML = data.jobs
+      .map((j) => {
+        const pct = j.total_chapters > 0
+          ? Math.round((j.processed_chapters / j.total_chapters) * 100)
+          : 0;
+        return `<div class="job-row">
+          <span><strong>#${j.job_id}</strong> ${escHtml(j.manga_title || j.manga_id)}</span>
+          <span class="status-${j.status}">${j.status}</span>
+          <span>${j.processed_chapters}/${j.total_chapters} chapters${j.total_chapters > 0 ? ` (${pct}%)` : ""}</span>
+        </div>`;
+      })
+      .join("");
+  } catch {
+    jobList.innerHTML = "<em>Could not load jobs.</em>";
+  }
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Auto-refresh queue every 10 seconds if there are running jobs
+setInterval(async () => {
+  const jobList = document.getElementById("job-list");
+  if (jobList && jobList.querySelector(".status-running, .status-pending")) {
+    await refreshJobs();
+  }
+}, 10000);
+
