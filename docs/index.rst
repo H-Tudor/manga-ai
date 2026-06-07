@@ -8,6 +8,7 @@ manga image translator, and a FastAPI service for end-to-end manga translation.
    :maxdepth: 2
    :caption: Contents
 
+   setup
    api/ai_translate
    api/manga_dex
    api/api
